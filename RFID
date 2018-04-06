@@ -1,0 +1,72 @@
+# CodeXP-IOT
+#Código do rfid
+
+
+#include <SoftwareSerial.h>
+#include <SPI.h>
+#include <UIPEthernet.h>
+#include "RestClient.h"
+#define TAMANHO_CARTAO 12
+
+bool estavaLendoCartao = false;
+bool lendoCartao = false;
+char cartao[TAMANHO_CARTAO] = {};
+int idxCartao = 0;
+const byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x51};
+
+EthernetClient client;
+// TODO: substituir pelo dominio do backend
+// ex: restClient("xxx.heroku.com", 80, client);
+//RestClient restClient("agile-mountain-42100.herokuapp.com", 80, client);
+RestClient restClient("lucianobispom-001-site1.itempurl.com", 80, client);
+
+// conectar RX com TX do RFID,
+// pino TX da SoftwareSerial não é utilizado
+// porta 4 é a porta para enviar os dados no Arduino
+SoftwareSerial portaRFID(4, 5); // RX, TX
+void setup() {
+  Serial.begin(9600);
+  portaRFID.begin(9600);
+  Serial.println("Inicio");
+
+  if (Ethernet.begin(mac)) {
+    Serial.println(Ethernet.localIP());
+  }
+
+  else {
+    Serial.println(F("Falha na inicialização Ethernet"));
+  }
+}
+void loop() {
+  // enquanto houver algum caractere vindo do RFID
+  while (portaRFID.available()) {
+    // após ler 12 caracteres, parar e resetar indice
+    char c = portaRFID.read();
+    Serial.println((int)c);
+    if (c == 2) {
+      lendoCartao = true;
+    } else if (lendoCartao) {
+      cartao[idxCartao++] = c;
+    }
+    if (idxCartao == TAMANHO_CARTAO) {
+      idxCartao = 0;
+      lendoCartao = false;
+      // printar o número do cartão RFID
+      Serial.println(cartao);
+
+      String payload = "{\"rfid\":\"";
+      payload += cartao;
+      payload += "\"}";
+
+      Serial.println(payload);
+
+      int statusCode = restClient.post("/api/Points", payload.c_str());
+      Serial.print("Enviado: ");
+      Serial.println(statusCode);
+    }
+
+  }
+
+}
+
+
